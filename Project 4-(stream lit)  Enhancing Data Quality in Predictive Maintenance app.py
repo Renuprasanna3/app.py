@@ -7,14 +7,13 @@ import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
-import plotly.express as px
 
-# Load sample CSV from local file
+# Load local data
 @st.cache_data
 def load_local_data():
-    return pd.read_csv("sample_data.csv")  # Place the file in the same folder as app.py
+    return pd.read_csv("sample_data.csv")  # Ensure this file exists in the same directory
 
-# Clean the data
+# Clean data
 def clean_sensor_data(df):
     df_clean = df.copy()
     df_clean.fillna(df_clean.median(numeric_only=True), inplace=True)
@@ -34,11 +33,10 @@ def train_model(df, target_column):
     report = classification_report(y_test, predictions, output_dict=True)
     return model, pd.DataFrame(report).transpose()
 
-# UI setup
+# Streamlit UI
 st.set_page_config(page_title="Predictive Maintenance AI", layout="wide")
 st.title("🔧 AI-based Predictive Maintenance System with Data Quality Enhancement")
 
-# Auto-load data
 df = load_local_data()
 st.subheader("📄 Raw Sensor Data")
 st.write(df.head())
@@ -49,30 +47,31 @@ st.subheader("🧼 Cleaned Sensor Data")
 st.write(df_clean.head())
 st.write(f"✅ Cleaned shape: {df_clean.shape}")
 
-# Feature distribution
+# Distribution plot
 st.subheader("📊 Feature Distributions")
 num_cols = df_clean.select_dtypes(include=np.number).columns.tolist()
-if num_cols:
-    selected_feature = st.selectbox("Select feature to visualize", num_cols)
-    fig = px.histogram(df_clean, x=selected_feature, nbins=30, title=f"Distribution of {selected_feature}")
-    st.plotly_chart(fig)
+selected_feature = st.selectbox("Select feature to visualize", num_cols)
+fig, ax = plt.subplots()
+sns.histplot(df_clean[selected_feature], kde=True, ax=ax)
+st.pyplot(fig)
 
 # Correlation heatmap
 st.subheader("📌 Correlation Heatmap")
-corr = df_clean.select_dtypes(include=np.number).corr()
-fig, ax = plt.subplots(figsize=(10, 6))
-sns.heatmap(corr, annot=True, cmap="coolwarm", fmt=".2f", ax=ax)
-st.pyplot(fig)
+fig2, ax2 = plt.subplots(figsize=(10, 6))
+sns.heatmap(df_clean[num_cols].corr(), annot=True, cmap="coolwarm", fmt=".2f", ax=ax2)
+st.pyplot(fig2)
 
-# Train model
+# Model Training
 if 'failure' in df_clean.columns:
     st.subheader("🤖 Model Training and Evaluation")
     model, report_df = train_model(df_clean, target_column='failure')
     st.dataframe(report_df)
 
+    # Feature importance
     st.subheader("📈 Feature Importance")
     importances = pd.Series(model.feature_importances_, index=df_clean.drop(columns=['failure']).columns)
-    fig_imp = px.bar(importances.sort_values(ascending=False), title="Feature Importance", labels={'value': 'Importance', 'index': 'Feature'})
-    st.plotly_chart(fig_imp)
+    fig3, ax3 = plt.subplots()
+    importances.sort_values().plot(kind='barh', ax=ax3)
+    st.pyplot(fig3)
 else:
-    st.warning("⚠️ The dataset must contain a 'failure' column as the target.")
+    st.warning("⚠️ The dataset must contain a 'failure' column.")
