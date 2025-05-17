@@ -1,0 +1,6 @@
+             sensor_1  sensor_2  temperature  pressure  failure
+sensor_1        1.00      0.76        0.54      0.51    -0.20
+sensor_2        0.76      1.00        0.68      0.48    -0.30
+temperature     0.54      0.68        1.00      0.62     0.10
+pressure        0.51      0.48        0.62      1.00     0.15
+failure        -0.20     -0.30        0.10      0.15     1.00
