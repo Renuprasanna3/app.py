@@ -1,74 +1,68 @@
-# app.py
-
 import streamlit as st
-import numpy as np
 import pandas as pd
-from sklearn.impute import SimpleImputer
-from sklearn.ensemble import IsolationForest, RandomForestClassifier
+import numpy as np
+import requests
+from io import StringIO
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import classification_report
-from imblearn.over_sampling import SMOTE
-import matplotlib.pyplot as plt
 
-# Streamlit App Title
-st.title("🔧 Predictive Maintenance: Data Quality & Failure Prediction")
+# Load data from GitHub
+def load_data_from_github(github_raw_url):
+    try:
+        response = requests.get(github_raw_url)
+        if response.status_code == 200:
+            df = pd.read_csv(StringIO(response.text))
+            return df
+        else:
+            st.error("Error loading data from GitHub.")
+            return None
+    except Exception as e:
+        st.error(f"Exception occurred: {e}")
+        return None
 
-# Sidebar seed input
-seed = st.sidebar.number_input("Random Seed", value=42)
+# Clean and validate data
+def clean_sensor_data(df):
+    df_clean = df.copy()
+    # Example: Fill missing values with median
+    df_clean.fillna(df_clean.median(numeric_only=True), inplace=True)
+    # Remove outliers using Z-score method
+    for col in df_clean.select_dtypes(include=np.number).columns:
+        z_scores = (df_clean[col] - df_clean[col].mean()) / df_clean[col].std()
+        df_clean = df_clean[(np.abs(z_scores) < 3)]
+    return df_clean
 
-# Generate synthetic data
-np.random.seed(seed)
-n_samples = 1000
-df = pd.DataFrame({
-    'temperature': np.random.normal(75, 10, n_samples),
-    'pressure': np.random.normal(30, 5, n_samples),
-    'vibration': np.random.normal(0.5, 0.1, n_samples),
-    'failure': np.random.choice([0, 1], size=n_samples, p=[0.95, 0.05])
-})
+# Train and predict model
+def train_model(df, target_column):
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    model = RandomForestClassifier()
+    model.fit(X_train, y_train)
+    predictions = model.predict(X_test)
+    report = classification_report(y_test, predictions, output_dict=True)
+    return model, pd.DataFrame(report).transpose()
 
-# Inject missing values and outliers
-for col in ['temperature', 'pressure']:
-    df.loc[df.sample(frac=0.05).index, col] = np.nan
-df.loc[df.sample(frac=0.02).index, 'vibration'] = 3.0
+# Streamlit UI
+st.set_page_config(page_title="Predictive Maintenance AI", layout="wide")
+st.title("🔧 AI-based Predictive Maintenance System with Data Quality Enhancement")
 
-st.subheader("📊 Raw Data (with Missing and Outliers)")
-st.dataframe(df.head())
+github_url = st.text_input("Enter GitHub Raw CSV URL", 
+                           "https://raw.githubusercontent.com/your-username/your-repo/main/sensor_data.csv")
 
-# Impute missing values
-imputer = SimpleImputer(strategy='mean')
-df[['temperature', 'pressure']] = imputer.fit_transform(df[['temperature', 'pressure']])
+if st.button("Load and Clean Data"):
+    df = load_data_from_github(github_url)
+    if df is not None:
+        st.subheader("Raw Sensor Data")
+        st.write(df.head())
 
-# Outlier detection
-features = ['temperature', 'pressure', 'vibration']
-scaler = StandardScaler()
-X_scaled = scaler.fit_transform(df[features])
-iso = IsolationForest(contamination=0.02, random_state=seed)
-df['outlier'] = iso.fit_predict(X_scaled)
-df_clean = df[df['outlier'] == 1].drop(columns='outlier')
+        st.subheader("Cleaned Sensor Data")
+        df_clean = clean_sensor_data(df)
+        st.write(df_clean.head())
 
-# Train-test split and SMOTE
-X = df_clean[features]
-y = df_clean['failure']
-X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, random_state=seed)
-smote = SMOTE(random_state=seed)
-X_train_bal, y_train_bal = smote.fit_resample(X_train, y_train)
-
-# Train model
-model = RandomForestClassifier(n_estimators=100, random_state=seed)
-model.fit(X_train_bal, y_train_bal)
-y_pred = model.predict(X_test)
-
-# Display metrics
-st.subheader("📈 Classification Report")
-report = classification_report(y_test, y_pred, zero_division=0, output_dict=True)
-st.dataframe(pd.DataFrame(report).transpose())
-
-# Feature importance
-importances = pd.Series(model.feature_importances_, index=features)
-st.subheader("📌 Feature Importance")
-st.bar_chart(importances)
-
-
-
-
+        if 'failure' in df_clean.columns:
+            st.subheader("Model Training and Evaluation")
+            model, report_df = train_model(df_clean, target_column='failure')
+            st.dataframe(report_df)
+        else:
+            st.warning("The dataset must contain a 'failure' column as the target.")
