@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 st.title("🔧 Predictive Maintenance: Data Quality & Failure Prediction")
 
 # Sidebar seed input
-seed = st.sidebar.number_input("Random Seed", value=42)
+seed = st.sidebar.number_input("Random Seed", value=42, step=1)
 
 # Generate synthetic data
 np.random.seed(seed)
@@ -29,8 +29,10 @@ df = pd.DataFrame({
 
 # Inject missing values and outliers
 for col in ['temperature', 'pressure']:
-    df.loc[df.sample(frac=0.05).index, col] = np.nan
-df.loc[df.sample(frac=0.02).index, 'vibration'] = 3.0
+    missing_indices = df.sample(frac=0.05, random_state=seed).index
+    df.loc[missing_indices, col] = np.nan
+outlier_indices = df.sample(frac=0.02, random_state=seed).index
+df.loc[outlier_indices, 'vibration'] = 3.0
 
 st.subheader("📊 Raw Data (with Missing and Outliers)")
 st.dataframe(df.head())
@@ -45,7 +47,10 @@ scaler = StandardScaler()
 X_scaled = scaler.fit_transform(df[features])
 iso = IsolationForest(contamination=0.02, random_state=seed)
 df['outlier'] = iso.fit_predict(X_scaled)
+n_outliers = (df['outlier'] == -1).sum()
 df_clean = df[df['outlier'] == 1].drop(columns='outlier')
+
+st.info(f"Number of outliers detected and removed: {n_outliers}")
 
 # Train-test split and SMOTE
 X = df_clean[features]
@@ -68,4 +73,16 @@ st.dataframe(pd.DataFrame(report).transpose())
 importances = pd.Series(model.feature_importances_, index=features)
 st.subheader("📌 Feature Importance")
 st.bar_chart(importances)
+
+# Optional: Show class distribution before and after SMOTE
+st.subheader("⚖️ Class Distribution Before and After SMOTE")
+col1, col2 = st.columns(2)
+with col1:
+    st.write("Before SMOTE")
+    st.bar_chart(y.value_counts())
+with col2:
+    st.write("After SMOTE")
+    st.bar_chart(pd.Series(y_train_bal).value_counts())
+
+
 
