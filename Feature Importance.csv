@@ -1,0 +1,7 @@
+| Feature     | Importance |
+| ----------- | ---------- |
+| temperature | 0.35       |
+| sensor\_2   | 0.25       |
+| sensor\_1   | 0.20       |
+| pressure    | 0.15       |
+| sensor\_3   | 0.05       |
