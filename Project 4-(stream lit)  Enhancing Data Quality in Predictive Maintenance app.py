@@ -1,83 +1,42 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import seaborn as sns
 import matplotlib.pyplot as plt
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report
+import seaborn as sns
 
-# Set Streamlit page config
+# Set up Streamlit page
 st.set_page_config(page_title="Predictive Maintenance", layout="wide")
+st.title("🔧 Predictive Maintenance Data Visualization")
 
-# Load dataset
-@st.cache_data
-def load_data():
-    df = pd.read_csv("sample_data.csv")
-    return df
+# Generate synthetic dataset
+def generate_dataset(seed=0):
+    np.random.seed(seed)
+    data = {
+        "Temperature": np.random.normal(loc=70 + seed, scale=5, size=100),
+        "Vibration": np.random.normal(loc=0.5 + 0.1 * seed, scale=0.05, size=100),
+        "Pressure": np.random.normal(loc=30 + seed, scale=3, size=100),
+        "Failure": np.random.choice([0, 1], size=100, p=[0.9, 0.1])
+    }
+    return pd.DataFrame(data)
 
-# Clean data
-def clean_sensor_data(df):
-    df_clean = df.copy()
-    df_clean.fillna(df_clean.median(numeric_only=True), inplace=True)
-    for col in df_clean.select_dtypes(include=np.number).columns:
-        z = (df_clean[col] - df_clean[col].mean()) / df_clean[col].std()
-        df_clean = df_clean[np.abs(z) < 3]
-    return df_clean
+# Function to display dataset and graphs
+def show_dataset_and_graphs(df, dataset_number):
+    st.subheader(f"📄 Dataset {dataset_number}")
+    st.dataframe(df)
 
-# Train model and return results
-def train_model(df, target_column):
-    X = df.drop(columns=[target_column])
-    y = df[target_column]
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    model = RandomForestClassifier()
-    model.fit(X_train, y_train)
-    preds = model.predict(X_test)
-    report = classification_report(y_test, preds, output_dict=True)
-    return model, pd.DataFrame(report).transpose()
+    features = ["Temperature", "Vibration", "Pressure"]
+    st.markdown(f"### 📊 Feature Distributions for Dataset {dataset_number}")
+    for feature in features:
+        fig, ax = plt.subplots(figsize=(6, 3))
+        sns.histplot(df[feature], kde=True, ax=ax, color='skyblue')
+        ax.set_title(f'{feature} Distribution - Dataset {dataset_number}')
+        ax.set_xlabel(feature)
+        ax.set_ylabel('Frequency')
+        st.pyplot(fig)
 
-# App start
-st.title("🔧 Predictive Maintenance with Enhanced Data Quality")
+# Generate and show 3 datasets
+for i in range(1, 4):
+    df = generate_dataset(seed=i)
+    show_dataset_and_graphs(df, dataset_number=i)
 
-df = load_data()
-st.subheader("📊 Raw Data")
-st.dataframe(df.head())
-
-# Clean the data
-df_clean = clean_sensor_data(df)
-st.subheader("🧼 Cleaned Data")
-st.dataframe(df_clean.head())
-
-# Model Training
-if 'failure' in df_clean.columns:
-    st.subheader("🤖 Model Evaluation")
-    model, report_df = train_model(df_clean, 'failure')
-    st.dataframe(report_df)
-
-    # Feature importance
-    st.subheader("📈 Feature Importance")
-    feature_importances = model.feature_importances_
-    features = df_clean.drop(columns=['failure']).columns
-    importance_df = pd.DataFrame({
-        'Feature': features,
-        'Importance': feature_importances
-    }).sort_values(by="Importance", ascending=False)
-
-    fig1, ax1 = plt.subplots()
-    sns.barplot(data=importance_df, x="Importance", y="Feature", ax=ax1)
-    st.pyplot(fig1)
-
-    # Feature Distributions
-    st.subheader("🔍 Feature Distribution Plot")
-    numerical_cols = [col for col in df_clean.columns if df_clean[col].dtype != 'object' and col != 'failure']
-    selected_feature = st.selectbox("Select a numerical feature", numerical_cols)
-
-    if selected_feature:
-        fig2, ax2 = plt.subplots()
-        sns.histplot(df_clean[selected_feature], kde=True, ax=ax2)
-        st.pyplot(fig2)
-else:
-    st.error("The 'failure' column is missing from the dataset.")
-
-
-  
+st.success("✅ All datasets and visualizations loaded successfully!")
